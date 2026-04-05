@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IAM Authorisation Training</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #root { min-height: 100vh; }
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+const MODULES = [
+  {
+    id: 1,
+    title: "What is Authorisation?",
+    icon: "\u{1F510}",
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: "Authentication vs Authorisation",
+        body: "Authentication verifies WHO you are (identity). Authorisation determines WHAT you can do (permissions). Think of it like a concert: your ticket proves you bought a seat (authentication), but only VIP pass holders can go backstage (authorisation).",
+      },
+      {
+        heading: "Why Authorisation Matters",
+        body: "Without proper authorisation controls, authenticated users could access any resource \u2014 read other people\u2019s emails, delete critical databases, or modify financial records. Authorisation is the gatekeeper that enforces boundaries after identity is confirmed.",
+      },
+      {
+        heading: "Core Concepts",
+        body: "Every authorisation decision answers three questions: Who is the SUBJECT (user/service)? What is the RESOURCE (data/action)? What PERMISSION is required (read/write/delete)? These three elements form the foundation of every access control model.",
+      },
+      {
+        heading: "The Policy Decision Point (PDP)",
+        body: "The PDP is the brain of authorisation. When an access request arrives, the PDP evaluates it against policies and returns Allow or Deny. The Policy Enforcement Point (PEP) then acts on that decision \u2014 it\u2019s the bouncer at the door.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What is the primary purpose of authorisation?",
+        options: ["Verifying a user\u2019s identity", "Determining what actions a user can perform", "Encrypting data in transit", "Managing user passwords"],
+        correct: 1,
+        explanation: "Authorisation determines what an authenticated user is permitted to do. Authentication handles identity verification.",
+      },
+      {
+        question: "Which component evaluates access requests against policies?",
+        options: ["Policy Enforcement Point (PEP)", "Identity Provider (IdP)", "Policy Decision Point (PDP)", "Service Mesh"],
+        correct: 2,
+        explanation: "The PDP evaluates access requests against defined policies and returns Allow/Deny decisions.",
+      },
+      {
+        question: "What are the three core elements of every authorisation decision?",
+        options: ["Username, Password, Token", "Subject, Resource, Permission", "Encrypt, Decrypt, Hash", "Login, Session, Logout"],
+        correct: 1,
+        explanation: "Every authorisation decision considers the Subject (who), the Resource (what), and the Permission (how).",
+      },
+    ],
+  },
+  {
+    id: 2,
+    title: "Role-Based Access Control (RBAC)",
+    icon: "\u{1F465}",
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: "What is RBAC?",
+        body: "RBAC assigns permissions to ROLES, not directly to users. Users are then assigned to roles. For example, a \u2018Finance Manager\u2019 role might include permissions to approve expenses, view reports, and manage budgets. Any user assigned that role inherits all those permissions automatically.",
+      },
+      {
+        heading: "Key RBAC Components",
+        body: "RBAC has four building blocks: Users (people/services), Roles (job functions like \u2018Admin\u2019 or \u2018Viewer\u2019), Permissions (allowed actions like \u2018read:reports\u2019), and Sessions (active role assignments). Roles create a layer of indirection between users and permissions, making management scalable.",
+      },
+      {
+        heading: "Role Hierarchies",
+        body: "Roles can inherit from other roles. A \u2018Senior Developer\u2019 role might inherit all permissions from \u2018Developer\u2019 and add deployment rights. This creates a hierarchy: Senior Developer \u2192 Developer \u2192 Viewer. Changes to a parent role cascade automatically to child roles.",
+      },
+      {
+        heading: "RBAC Strengths & Limitations",
+        body: "Strengths: Easy to understand, audit-friendly, works well for stable organisations. Limitations: Can lead to \u2018role explosion\u2019 \u2014 hundreds of hyper-specific roles. Doesn\u2019t handle dynamic conditions well (e.g., \u2018allow access only during business hours\u2019). For those, you need ABAC.",
+      },
+    ],
+    quiz: [
+      {
+        question: "In RBAC, permissions are assigned directly to:",
+        options: ["Users", "Roles", "Sessions", "Devices"],
+        correct: 1,
+        explanation: "RBAC assigns permissions to roles. Users inherit permissions by being assigned to roles.",
+      },
+      {
+        question: "What is \u2018role explosion\u2019?",
+        options: ["When a role is deleted accidentally", "Proliferation of too many highly specific roles", "When role hierarchies become circular", "A security breach through role manipulation"],
+        correct: 1,
+        explanation: "Role explosion occurs when organisations create too many granular roles, making the system difficult to manage.",
+      },
+      {
+        question: "Which scenario is RBAC NOT well-suited for?",
+        options: ["Assigning standard permissions to a department", "Granting access based on time of day and location", "Onboarding new employees with predefined access", "Auditing who has access to what"],
+        correct: 1,
+        explanation: "RBAC handles static role assignments well, but dynamic conditions (time, location) require attribute-based approaches.",
+      },
+    ],
+  },
+  {
+    id: 3,
+    title: "Attribute-Based Access Control (ABAC)",
+    icon: "\u{1F3F7}\uFE0F",
+    estimatedMinutes: 7,
+    sections: [
+      {
+        heading: "What is ABAC?",
+        body: "ABAC makes access decisions based on ATTRIBUTES \u2014 properties of the user, resource, action, and environment. Instead of \u2018Does this user have the Admin role?\u2019, ABAC asks \u2018Is this user in the Finance department, accessing a document classified as Internal, during business hours, from a corporate network?\u2019",
+      },
+      {
+        heading: "Attribute Categories",
+        body: "Subject attributes: department, clearance level, job title. Resource attributes: classification, owner, sensitivity. Action attributes: read, write, delete, approve. Environment attributes: time of day, IP address, device type, risk score. Policies combine these for fine-grained decisions.",
+      },
+      {
+        heading: "ABAC Policy Example",
+        body: "A policy might read: ALLOW if (subject.department == \u2018Engineering\u2019) AND (resource.classification <= \u2018Confidential\u2019) AND (environment.time BETWEEN 09:00 AND 18:00) AND (action == \u2018read\u2019). This single policy replaces what might require dozens of roles in RBAC.",
+      },
+      {
+        heading: "ABAC vs RBAC: When to Choose",
+        body: "Use RBAC when: roles are stable, org structure drives access, simplicity is key. Use ABAC when: access depends on context, policies are dynamic, cross-cutting conditions exist. Many organisations use BOTH \u2014 RBAC for baseline permissions, ABAC for fine-grained overrides. This hybrid approach is increasingly common.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What does ABAC use to make access decisions?",
+        options: ["Only user roles", "Attributes of subjects, resources, actions, and environment", "Only passwords and tokens", "Only network location"],
+        correct: 1,
+        explanation: "ABAC evaluates combinations of attributes from multiple categories to make fine-grained access decisions.",
+      },
+      {
+        question: "Which of these is an ENVIRONMENT attribute?",
+        options: ["User\u2019s department", "Document classification", "Time of day", "Action type (read/write)"],
+        correct: 2,
+        explanation: "Time of day is an environmental/contextual attribute. Department is a subject attribute, classification is a resource attribute.",
+      },
+      {
+        question: "What is the recommended approach for complex organisations?",
+        options: ["Use only RBAC", "Use only ABAC", "Avoid both and use ACLs", "Hybrid RBAC + ABAC"],
+        correct: 3,
+        explanation: "A hybrid approach uses RBAC for baseline access and ABAC for fine-grained, context-aware overrides.",
+      },
+    ],
+  },
+  {
+    id: 4,
+    title: "Principle of Least Privilege",
+    icon: "\u{1F3AF}",
+    estimatedMinutes: 5,
+    sections: [
+      {
+        heading: "The Golden Rule",
+        body: "Least Privilege means granting only the MINIMUM permissions necessary to perform a task \u2014 nothing more, nothing less. If a developer only needs to read logs, don\u2019t give them write access to the production database. This limits the blast radius if an account is compromised.",
+      },
+      {
+        heading: "Implementing Least Privilege",
+        body: "Start with zero access (deny-by-default). Add permissions as justified by job function. Use time-bound access: temporary elevated privileges that auto-expire. Implement Just-In-Time (JIT) access: users request elevated access for specific tasks, and it\u2019s revoked automatically after use.",
+      },
+      {
+        heading: "Privilege Creep",
+        body: "Over time, users accumulate permissions as they move between teams or take on projects \u2014 but old permissions are rarely revoked. This is \u2018privilege creep\u2019. Combat it with regular access reviews (recertification), automated deprovisioning when roles change, and alerting on unused permissions.",
+      },
+      {
+        heading: "Real-World Impact",
+        body: "The 2020 SolarWinds attack exploited excessive privileges \u2014 compromised accounts had far more access than needed, enabling lateral movement. The Capital One breach involved an over-permissioned WAF role. Least privilege won\u2019t prevent all attacks, but dramatically limits damage when breaches occur.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What does the Principle of Least Privilege mandate?",
+        options: ["All users should have admin access for flexibility", "Grant only the minimum permissions needed for a task", "Permissions should be permanent once assigned", "Access should be based on seniority"],
+        correct: 1,
+        explanation: "Least Privilege means granting only the minimum required permissions \u2014 nothing extra.",
+      },
+      {
+        question: "What is \u2018privilege creep\u2019?",
+        options: ["Slowly increasing password complexity requirements", "Accumulation of unnecessary permissions over time", "A type of phishing attack", "Gradual encryption of data at rest"],
+        correct: 1,
+        explanation: "Privilege creep occurs when users accumulate permissions over time without old ones being revoked.",
+      },
+      {
+        question: "What is Just-In-Time (JIT) access?",
+        options: ["Permanent admin access for efficiency", "Access granted only when needed and auto-revoked after use", "Real-time monitoring of access logs", "Instant password resets"],
+        correct: 1,
+        explanation: "JIT access provides temporary elevated privileges for specific tasks, automatically revoked after use.",
+      },
+    ],
+  },
+  {
+    id: 5,
+    title: "OAuth 2.0 & Delegated Authorisation",
+    icon: "\u{1F511}",
+    estimatedMinutes: 7,
+    sections: [
+      {
+        heading: "What is OAuth 2.0?",
+        body: "OAuth 2.0 is a DELEGATED AUTHORISATION framework. It lets a user grant a third-party app limited access to their resources WITHOUT sharing their password. When you click \u2018Sign in with Google\u2019 on a website, OAuth is working behind the scenes \u2014 you\u2019re authorising that app to access specific Google data.",
+      },
+      {
+        heading: "Key OAuth 2.0 Roles",
+        body: "Resource Owner: the user who owns the data. Client: the app requesting access. Authorisation Server: issues tokens after the user consents (e.g., Google\u2019s auth server). Resource Server: hosts the protected data (e.g., Google Calendar API). The flow keeps the user\u2019s credentials away from the third-party app.",
+      },
+      {
+        heading: "Tokens & Scopes",
+        body: "Access Tokens: short-lived credentials the client uses to access resources. Refresh Tokens: long-lived tokens used to get new access tokens without re-authenticating. Scopes: define WHAT the client can access (e.g., \u2018read:calendar\u2019 but not \u2018delete:contacts\u2019). Scopes enforce least privilege in OAuth.",
+      },
+      {
+        heading: "Common Grant Types",
+        body: "Authorization Code: most secure, used by server-side apps \u2014 involves a redirect and code exchange. PKCE: extension for public clients (mobile/SPA) that prevents code interception. Client Credentials: machine-to-machine, no user involved. Implicit flow is deprecated due to token exposure in browser history.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What problem does OAuth 2.0 solve?",
+        options: ["Encrypting data at rest", "Allowing third-party access without sharing passwords", "Replacing all other authentication methods", "Managing database connections"],
+        correct: 1,
+        explanation: "OAuth 2.0 enables delegated authorisation \u2014 granting limited access to resources without exposing credentials.",
+      },
+      {
+        question: "What are OAuth \u2018scopes\u2019 used for?",
+        options: ["Defining the lifetime of a session", "Specifying what resources/actions a client can access", "Encrypting the access token", "Identifying the user\u2019s location"],
+        correct: 1,
+        explanation: "Scopes define the boundaries of what a client application is authorised to access.",
+      },
+      {
+        question: "Why is the Implicit grant type deprecated?",
+        options: ["It\u2019s too slow", "Tokens are exposed in browser history/URL fragments", "It requires a server", "It doesn\u2019t support scopes"],
+        correct: 1,
+        explanation: "The Implicit flow returns tokens directly in URL fragments, making them visible in browser history and vulnerable to interception.",
+      },
+    ],
+  },
+  {
+    id: 6,
+    title: "Policy as Code & Zero Trust",
+    icon: "\u{1F4DC}",
+    estimatedMinutes: 6,
+    sections: [
+      {
+        heading: "Policy as Code",
+        body: "Instead of managing access policies through GUIs or spreadsheets, Policy as Code defines authorisation rules in version-controlled code. Tools like Open Policy Agent (OPA) and Cedar let you write, test, and deploy policies like software. Benefits: audit trail via git history, automated testing, consistent enforcement.",
+      },
+      {
+        heading: "Open Policy Agent (OPA)",
+        body: "OPA is a general-purpose policy engine. You write policies in Rego (a declarative language). Example: \u2018allow { input.user.role == \"admin\" }\u2019. OPA decouples policy from application code \u2014 your app asks OPA \u2018Can user X do Y?\u2019, and OPA evaluates it against the policy bundle. This centralises authorisation logic.",
+      },
+      {
+        heading: "Zero Trust Authorisation",
+        body: "Zero Trust means \u2018never trust, always verify\u2019. Every request is authorised independently \u2014 even from inside the corporate network. No implicit trust based on network location. Each API call, each microservice hop, each data access is verified. This is a shift from perimeter-based security (\u2018castle and moat\u2019) to identity-based security.",
+      },
+      {
+        heading: "Putting It All Together",
+        body: "Modern authorisation combines: RBAC/ABAC for access models, Least Privilege for scope, OAuth for delegation, Policy as Code for governance, and Zero Trust for architecture. These aren\u2019t competing approaches \u2014 they\u2019re layers. Together, they form a defence-in-depth strategy for authorisation.",
+      },
+    ],
+    quiz: [
+      {
+        question: "What is the main benefit of Policy as Code?",
+        options: ["It\u2019s faster to write than GUI rules", "Policies are version-controlled, testable, and auditable", "It eliminates the need for authorisation entirely", "It only works with RBAC"],
+        correct: 1,
+        explanation: "Policy as Code brings software development practices (version control, testing, CI/CD) to authorisation policies.",
+      },
+      {
+        question: "What does Zero Trust mean for authorisation?",
+        options: ["Trust all internal network traffic", "Every request must be verified regardless of network location", "Only external requests need authorisation", "Users only need to authenticate once"],
+        correct: 1,
+        explanation: "Zero Trust requires every request to be authorised independently \u2014 no implicit trust from network location.",
+      },
+      {
+        question: "How does OPA decouple policy from application code?",
+        options: ["By embedding policies directly in the database", "Applications query OPA externally for policy decisions", "OPA replaces the application entirely", "By hardcoding rules in each microservice"],
+        correct: 1,
+        explanation: "OPA acts as an external policy decision engine \u2014 applications ask OPA for authorisation decisions rather than embedding logic.",
+      },
+    ],
+  },
+];
+
+const BADGES = [
+  { id: "first_step", name: "First Step", icon: "\u{1F31F}", description: "Complete your first module", requirement: (s) => s.completedModules.length >= 1 },
+  { id: "quiz_ace", name: "Quiz Ace", icon: "\u{1F3C6}", description: "Score 100% on any quiz", requirement: (s) => Object.values(s.quizScores).some((q) => q.score === q.total) },
+  { id: "halfway", name: "Halfway There", icon: "\u{1F525}", description: "Complete 3 modules", requirement: (s) => s.completedModules.length >= 3 },
+  { id: "streak_3", name: "On a Roll", icon: "\u26A1", description: "Achieve a 3-module streak", requirement: (s) => s.streak >= 3 },
+  { id: "scholar", name: "Auth Scholar", icon: "\u{1F393}", description: "Complete all 6 modules", requirement: (s) => s.completedModules.length >= 6 },
+  { id: "perfectionist", name: "Perfectionist", icon: "\u{1F48E}", description: "Score 100% on all quizzes", requirement: (s) => Object.values(s.quizScores).length === 6 && Object.values(s.quizScores).every((q) => q.score === q.total) },
+];
+
+const XP_PER_SECTION = 15;
+const XP_PER_CORRECT = 30;
+const XP_PERFECT_QUIZ_BONUS = 50;
+
+const INITIAL_STATE = {
+  completedModules: [],
+  currentModule: null,
+  currentSection: 0,
+  quizScores: {},
+  xp: 0,
+  streak: 0,
+  earnedBadges: [],
+  quizState: null,
+  view: "dashboard",
+  newBadges: [],
+};
+
+const theme = {
+  bg: "#0f172a",
+  card: "#1e293b",
+  cardHover: "#273549",
+  accent: "#6366f1",
+  accentLight: "#818cf8",
+  success: "#22c55e",
+  successBg: "rgba(34,197,94,0.12)",
+  warning: "#f59e0b",
+  error: "#ef4444",
+  errorBg: "rgba(239,68,68,0.12)",
+  text: "#f1f5f9",
+  textMuted: "#94a3b8",
+  textDim: "#64748b",
+  border: "#334155",
+  gold: "#fbbf24",
+};
+
+function IAMTrainingApp() {
+  const [state, setState] = useState(() => {
+    try {
+      const saved = localStorage.getItem("iam-auth-training");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...INITIAL_STATE, ...parsed, view: "dashboard", newBadges: [] };
+      }
+    } catch (e) {}
+    return INITIAL_STATE;
+  });
+
+  useEffect(() => {
+    try {
+      const { view, newBadges, ...persist } = state;
+      localStorage.setItem("iam-auth-training", JSON.stringify(persist));
+    } catch (e) {}
+  }, [state]);
+
+  const update = useCallback((patch) => setState((s) => ({ ...s, ...patch })), []);
+
+  const totalXPPossible = MODULES.reduce(
+    (sum, m) => sum + m.sections.length * XP_PER_SECTION + m.quiz.length * XP_PER_CORRECT + XP_PERFECT_QUIZ_BONUS, 0
+  );
+
+  const level = useMemo(() => {
+    if (state.xp < 100) return { name: "Novice", num: 1, next: 100 };
+    if (state.xp < 250) return { name: "Apprentice", num: 2, next: 250 };
+    if (state.xp < 500) return { name: "Practitioner", num: 3, next: 500 };
+    if (state.xp < 800) return { name: "Specialist", num: 4, next: 800 };
+    return { name: "Authority", num: 5, next: totalXPPossible };
+  }, [state.xp, totalXPPossible]);
+
+  const checkBadges = useCallback((newState) => {
+    const fresh = [];
+    BADGES.forEach((b) => {
+      if (!newState.earnedBadges.includes(b.id) && b.requirement(newState)) fresh.push(b.id);
+    });
+    if (fresh.length) return { earnedBadges: [...newState.earnedBadges, ...fresh], newBadges: fresh };
+    return {};
+  }, []);
+
+  const goToDashboard = () => update({ view: "dashboard", currentModule: null, currentSection: 0, quizState: null, newBadges: [] });
+
+  const startModule = (moduleId) => update({ view: "module", currentModule: moduleId, currentSection: 0, quizState: null });
+
+  const nextSection = () => {
+    const mod = MODULES.find((m) => m.id === state.currentModule);
+    if (state.currentSection < mod.sections.length - 1) {
+      update({ currentSection: state.currentSection + 1, xp: state.xp + XP_PER_SECTION });
+    } else {
+      update({ xp: state.xp + XP_PER_SECTION, view: "quiz", quizState: { questionIndex: 0, answers: [], submitted: false } });
+    }
+  };
+
+  const prevSection = () => { if (state.currentSection > 0) update({ currentSection: state.currentSection - 1 }); };
+
+  const answerQuiz = (optionIndex) => {
+    if (state.quizState.submitted) return;
+    const newAnswers = [...state.quizState.answers];
+    newAnswers[state.quizState.questionIndex] = optionIndex;
+    update({ quizState: { ...state.quizState, answers: newAnswers } });
+  };
+
+  const submitAnswer = () => {
+    const mod = MODULES.find((m) => m.id === state.currentModule);
+    const qi = state.quizState.questionIndex;
+    const isCorrect = state.quizState.answers[qi] === mod.quiz[qi].correct;
+    update({ quizState: { ...state.quizState, submitted: true }, xp: state.xp + (isCorrect ? XP_PER_CORRECT : 0) });
+  };
+
+  const nextQuestion = () => {
+    const mod = MODULES.find((m) => m.id === state.currentModule);
+    const qi = state.quizState.questionIndex;
+    if (qi < mod.quiz.length - 1) {
+      update({ quizState: { ...state.quizState, questionIndex: qi + 1, submitted: false } });
+    } else {
+      const score = mod.quiz.reduce((s, q, i) => s + (state.quizState.answers[i] === q.correct ? 1 : 0), 0);
+      const isPerfect = score === mod.quiz.length;
+      const bonusXP = isPerfect ? XP_PERFECT_QUIZ_BONUS : 0;
+      const wasAlreadyComplete = state.completedModules.includes(mod.id);
+      const newCompleted = wasAlreadyComplete ? state.completedModules : [...state.completedModules, mod.id];
+      const newStreak = wasAlreadyComplete ? state.streak : state.streak + 1;
+      const newState = {
+        ...state, completedModules: newCompleted, streak: newStreak, xp: state.xp + bonusXP,
+        quizScores: { ...state.quizScores, [mod.id]: { score, total: mod.quiz.length } }, view: "results",
+      };
+      const badgePatch = checkBadges(newState);
+      update({ ...newState, ...badgePatch, view: "results" });
+    }
+  };
+
+  const resetProgress = () => {
+    try { localStorage.removeItem("iam-auth-training"); } catch (e) {}
+    setState(INITIAL_STATE);
+  };
+
+  const currentMod = MODULES.find((m) => m.id === state.currentModule);
+
+  const css = {
+    app: { minHeight: "100vh", background: "linear-gradient(135deg, " + theme.bg + " 0%, #1a1a2e 100%)", color: theme.text, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', padding: "0", margin: "0" },
+    container: { maxWidth: 800, margin: "0 auto", padding: "24px 20px" },
+    header: { textAlign: "center", marginBottom: 32, padding: "32px 20px 24px", background: "linear-gradient(135deg, " + theme.accent + "22, " + theme.card + ")", borderBottom: "1px solid " + theme.border },
+    title: { fontSize: 28, fontWeight: 700, margin: "0 0 4px", letterSpacing: -0.5 },
+    subtitle: { color: theme.textMuted, fontSize: 14, margin: 0 },
+    statsBar: { display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 20 },
+    statChip: { background: theme.card, border: "1px solid " + theme.border, borderRadius: 12, padding: "10px 18px", fontSize: 13, display: "flex", alignItems: "center", gap: 6, fontWeight: 500 },
+    progressOuter: { height: 8, background: theme.border, borderRadius: 4, overflow: "hidden", margin: "16px auto 0", maxWidth: 400 },
+    progressInner: function(pct) { return { height: "100%", width: pct + "%", background: "linear-gradient(90deg, " + theme.accent + ", " + theme.accentLight + ")", borderRadius: 4, transition: "width 0.5s ease" }; },
+    card: function(completed) { return { background: theme.card, border: "1px solid " + (completed ? theme.success + "44" : theme.border), borderRadius: 14, padding: 20, marginBottom: 14, cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", gap: 16 }; },
+    cardIcon: { fontSize: 32, flexShrink: 0 },
+    cardContent: { flex: 1 },
+    cardTitle: { fontSize: 16, fontWeight: 600, margin: "0 0 4px" },
+    cardMeta: { fontSize: 12, color: theme.textMuted, margin: 0 },
+    badge: function(earned) { return { background: earned ? theme.gold + "18" : theme.card, border: "1px solid " + (earned ? theme.gold + "55" : theme.border), borderRadius: 12, padding: "14px 16px", textAlign: "center", opacity: earned ? 1 : 0.45, minWidth: 120 }; },
+    btn: function(variant) { return { padding: "10px 24px", borderRadius: 10, border: variant === "primary" ? "none" : "1px solid " + theme.border, fontWeight: 600, fontSize: 14, cursor: "pointer", transition: "all 0.2s", color: variant === "primary" ? "#fff" : theme.textMuted, background: variant === "primary" ? theme.accent : "transparent" }; },
+    option: function(selected, isCorrect, submitted) {
+      var bg = theme.card;
+      var border = selected ? theme.accentLight : theme.border;
+      if (submitted && isCorrect) { bg = theme.successBg; border = theme.success; }
+      else if (submitted && selected && !isCorrect) { bg = theme.errorBg; border = theme.error; }
+      return { background: bg, border: "2px solid " + border, borderRadius: 10, padding: "12px 16px", marginBottom: 10, cursor: submitted ? "default" : "pointer", transition: "all 0.2s", fontSize: 14, display: "flex", alignItems: "center", gap: 10 };
+    },
+    sectionCard: { background: theme.card, borderRadius: 14, padding: "28px 24px", border: "1px solid " + theme.border, marginBottom: 20 },
+  };
+
+  const renderDashboard = () => {
+    const completionPct = Math.round((state.completedModules.length / MODULES.length) * 100);
+    return (
+      <div>
+        <div style={css.header}>
+          <h1 style={css.title}>IAM Authorisation Training</h1>
+          <p style={css.subtitle}>Master the fundamentals of access control</p>
+          <div style={css.statsBar}>
+            <div style={css.statChip}>{"\u26A1"} {state.xp} XP</div>
+            <div style={css.statChip}>{"\u{1F4CA}"} Level {level.num}: {level.name}</div>
+            <div style={css.statChip}>{"\u{1F525}"} Streak: {state.streak}</div>
+            <div style={css.statChip}>{"\u{1F3C5}"} {state.earnedBadges.length} / {BADGES.length} Badges</div>
+          </div>
+          <div style={css.progressOuter}>
+            <div style={css.progressInner(completionPct)} />
+          </div>
+          <p style={{ ...css.cardMeta, marginTop: 8 }}>
+            {state.completedModules.length} of {MODULES.length} modules complete ({completionPct}%)
+          </p>
+        </div>
+        <div style={css.container}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Modules</h2>
+            <button style={css.btn("ghost")} onClick={() => update({ view: "badges" })}>{"\u{1F3C5}"} View Badges</button>
+          </div>
+          {MODULES.map((mod, i) => {
+            const done = state.completedModules.includes(mod.id);
+            const quizScore = state.quizScores[mod.id];
+            const locked = i > 0 && !state.completedModules.includes(MODULES[i - 1].id);
+            return (
+              <div key={mod.id} style={{ ...css.card(done), opacity: locked ? 0.45 : 1, cursor: locked ? "not-allowed" : "pointer" }}
+                onClick={() => !locked && startModule(mod.id)}
+                onMouseEnter={(e) => { if (!locked) e.currentTarget.style.background = theme.cardHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = theme.card; }}>
+                <div style={css.cardIcon}>{mod.icon}</div>
+                <div style={css.cardContent}>
+                  <p style={css.cardTitle}>Module {mod.id}: {mod.title}</p>
+                  <p style={css.cardMeta}>{mod.sections.length} sections {"\u00B7"} {mod.estimatedMinutes} min{quizScore ? " \u00B7 Quiz: " + quizScore.score + "/" + quizScore.total : ""}</p>
+                </div>
+                <div style={{ fontSize: 22 }}>{locked ? "\u{1F512}" : done ? "\u2705" : "\u2192"}</div>
+              </div>
+            );
+          })}
+          {state.completedModules.length > 0 && (
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <button style={{ ...css.btn("ghost"), fontSize: 12, color: theme.error }} onClick={resetProgress}>Reset All Progress</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderModule = () => {
+    const section = currentMod.sections[state.currentSection];
+    const progressPct = ((state.currentSection + 1) / currentMod.sections.length) * 100;
+    return (
+      <div style={css.container}>
+        <button style={{ ...css.btn("ghost"), marginBottom: 20 }} onClick={goToDashboard}>{"\u2190"} Back</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: 28 }}>{currentMod.icon}</span>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Module {currentMod.id}: {currentMod.title}</h2>
+            <p style={{ ...css.cardMeta, marginTop: 2 }}>Section {state.currentSection + 1} of {currentMod.sections.length}</p>
+          </div>
+        </div>
+        <div style={css.progressOuter}><div style={css.progressInner(progressPct)} /></div>
+        <div style={{ ...css.sectionCard, marginTop: 24 }}>
+          <h3 style={{ margin: "0 0 14px", fontSize: 18, color: theme.accentLight }}>{section.heading}</h3>
+          <p style={{ margin: 0, lineHeight: 1.7, fontSize: 15, color: theme.text }}>{section.body}</p>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+          <button style={css.btn("ghost")} onClick={prevSection} disabled={state.currentSection === 0}>{"\u2190"} Previous</button>
+          <button style={css.btn("primary")} onClick={nextSection}>{state.currentSection === currentMod.sections.length - 1 ? "Start Quiz \u2192" : "Next \u2192"}</button>
+        </div>
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <span style={{ fontSize: 12, color: theme.textDim }}>+{XP_PER_SECTION} XP per section {"\u00B7"} +{XP_PER_CORRECT} XP per correct answer</span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuiz = () => {
+    const qi = state.quizState.questionIndex;
+    const question = currentMod.quiz[qi];
+    const selectedAnswer = state.quizState.answers[qi];
+    const submitted = state.quizState.submitted;
+    const isCorrect = submitted && selectedAnswer === question.correct;
+    return (
+      <div style={css.container}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <span style={{ fontSize: 28 }}>{"\u{1F4DD}"}</span>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Quiz: {currentMod.title}</h2>
+            <p style={{ ...css.cardMeta, marginTop: 2 }}>Question {qi + 1} of {currentMod.quiz.length}</p>
+          </div>
+        </div>
+        <div style={css.progressOuter}><div style={css.progressInner(((qi + 1) / currentMod.quiz.length) * 100)} /></div>
+        <div style={{ ...css.sectionCard, marginTop: 24 }}>
+          <p style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, lineHeight: 1.5 }}>{question.question}</p>
+          {question.options.map((opt, i) => (
+            <div key={i} style={css.option(i === selectedAnswer, i === question.correct, submitted)} onClick={() => !submitted && answerQuiz(i)}>
+              <span style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid " + (i === selectedAnswer ? theme.accentLight : theme.border), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0, background: i === selectedAnswer ? theme.accent : "transparent", color: i === selectedAnswer ? "#fff" : theme.textMuted }}>
+                {String.fromCharCode(65 + i)}
+              </span>
+              <span>{opt}</span>
+            </div>
+          ))}
+          {submitted && (
+            <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 10, background: isCorrect ? theme.successBg : theme.errorBg, border: "1px solid " + (isCorrect ? theme.success + "44" : theme.error + "44"), fontSize: 14, lineHeight: 1.6 }}>
+              <strong>{isCorrect ? "\u2705 Correct!" : "\u274C Not quite."}</strong><br />{question.explanation}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          {!submitted ? (
+            <button style={{ ...css.btn("primary"), opacity: selectedAnswer == null ? 0.5 : 1 }} onClick={submitAnswer} disabled={selectedAnswer == null}>Submit Answer</button>
+          ) : (
+            <button style={css.btn("primary")} onClick={nextQuestion}>{qi === currentMod.quiz.length - 1 ? "See Results \u2192" : "Next Question \u2192"}</button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderResults = () => {
+    const quizScore = state.quizScores[currentMod.id];
+    const pct = Math.round((quizScore.score / quizScore.total) * 100);
+    const newlyEarned = BADGES.filter((b) => state.newBadges.includes(b.id));
+    return (
+      <div style={css.container}>
+        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>{pct === 100 ? "\u{1F3C6}" : pct >= 66 ? "\u{1F389}" : "\u{1F4DA}"}</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 700 }}>{pct === 100 ? "Perfect Score!" : pct >= 66 ? "Well Done!" : "Keep Learning!"}</h2>
+          <p style={{ color: theme.textMuted, fontSize: 16, margin: "0 0 24px" }}>Module {currentMod.id}: {currentMod.title}</p>
+          <div style={{ ...css.sectionCard, maxWidth: 360, margin: "0 auto 24px" }}>
+            <div style={{ fontSize: 40, fontWeight: 800, color: pct === 100 ? theme.success : pct >= 66 ? theme.accentLight : theme.warning }}>{quizScore.score}/{quizScore.total}</div>
+            <p style={{ ...css.cardMeta, marginTop: 4 }}>correct answers ({pct}%)</p>
+            {pct === 100 && <p style={{ color: theme.gold, fontSize: 13, marginTop: 8, marginBottom: 0 }}>{"\u{1F31F}"} +{XP_PERFECT_QUIZ_BONUS} XP perfect score bonus!</p>}
+          </div>
+          {newlyEarned.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <p style={{ fontSize: 14, color: theme.gold, fontWeight: 600, marginBottom: 12 }}>{"\u{1F3C5}"} New badges earned!</p>
+              <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+                {newlyEarned.map((b) => (
+                  <div key={b.id} style={css.badge(true)}>
+                    <div style={{ fontSize: 28 }}>{b.icon}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{b.name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+            {pct < 100 && <button style={css.btn("ghost")} onClick={() => startModule(currentMod.id)}>{"\u{1F504}"} Retry Module</button>}
+            <button style={css.btn("primary")} onClick={goToDashboard}>Back to Dashboard</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderBadges = () => (
+    <div style={css.container}>
+      <button style={{ ...css.btn("ghost"), marginBottom: 20 }} onClick={goToDashboard}>{"\u2190"} Back</button>
+      <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 700 }}>{"\u{1F3C5}"} Badges & Achievements</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14 }}>
+        {BADGES.map((b) => {
+          const earned = state.earnedBadges.includes(b.id);
+          return (
+            <div key={b.id} style={css.badge(earned)}>
+              <div style={{ fontSize: 32, marginBottom: 6 }}>{b.icon}</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{b.name}</div>
+              <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>{b.description}</div>
+              {earned && <div style={{ fontSize: 11, color: theme.gold, marginTop: 4 }}>{"\u2713"} Earned</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={css.app}>
+      {state.view === "dashboard" && renderDashboard()}
+      {state.view === "module" && currentMod && renderModule()}
+      {state.view === "quiz" && currentMod && state.quizState && renderQuiz()}
+      {state.view === "results" && currentMod && renderResults()}
+      {state.view === "badges" && renderBadges()}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  React.createElement(IAMTrainingApp)
+);
+  </script>
+</body>
+</html>
